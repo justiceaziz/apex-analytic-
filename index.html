@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Apex Monitor - Form 4 Test Analyzer</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+    import { getDatabase, ref, onValue, set } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDWRHohhNlmr66ueBvCs8p7BC2Dyz0NjDc",
+      authDomain: "apex-academy1.firebaseapp.com",
+      databaseURL: "https://apex-academy1-default-rtdb.europe-west1.firebasedatabase.app",
+      projectId: "apex-academy1",
+      storageBucket: "apex-academy1.firebasestorage.app",
+      messagingSenderId: "1080724065619",
+      appId: "1:1080724065619:web:0de01b10fa0a31705b65a6",
+      measurementId: "G-91MXHV0B2M"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    window.db = db;
+    window.dbRef = ref;
+    window.dbOnValue = onValue;
+    window.dbSet = set;
+  </script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+    h1 { text-align: center; color: #2c3e50; margin-bottom: 5px; }
+    .subtitle { text-align: center; color: #7f8c8d; margin-top: 0; margin-bottom: 20px; }
+    .container { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .tabs { display: flex; gap: 10px; margin-bottom: 15px; border-bottom: 2px solid #ecf0f1; }
+    .tab { padding: 10px 15px; cursor: pointer; background: #ecf0f1; border-radius: 4px 4px 0 0; }
+    .tab.active { background: #34495e; color: white; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    .controls { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; align-items: center; }
+    input, select, button { padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
+    select { min-width: 160px; }
+    input[type="number"] { width: 80px; }
+    label { font-size: 14px; color: #555; }
+    button { background: #27ae60; color: white; cursor: pointer; border: none; }
+    button:hover { background: #219150; }
+    button:disabled { background: #bdc3c7; cursor: not-allowed; }
+    .btn-print { background: #2980b9; }
+    .btn-print:hover { background: #2471a3; }
+    .btn-danger { background: #c0392b; }
+    .btn-danger:hover { background: #a93226; }
+    .btn-secondary { background: #7f8c8d; }
+    .btn-secondary:hover { background: #707b7c; }
+    .btn-login { background: #8e44ad; }
+    .btn-login:hover { background: #7d3c98; }
+    table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 14px; }
+    th, td { border: 1px solid #ddd; padding: 6px; text-align: center; }
+    th { background: #34495e; color: white; position: sticky; top: 0; }
+    tr:nth-child(even) { background: #f9f9f9; }
+    tr:hover { background: #e8f4fd; }
+    .student-name { cursor: pointer; color: #2980b9; text-decoration: underline; }
+    .student-name:hover { color: #1f618d; }
+    .deviation { background: #ffcccc !important; font-weight: bold; }
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin: 15px 0; }
+    .stat-box { background: #ecf0f1; padding: 10px; border-radius: 4px; }
+    .grade-A { color: #27ae60; font-weight: bold; }
+    .grade-E { color: #c0392b; font-weight: bold; }
+    .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 25px; }
+    @media (max-width: 900px) { .chart-grid { grid-template-columns: 1fr; } }
+    .roster-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-top: 15px; }
+    .roster-box { border: 1px solid #ddd; border-radius: 4px; padding: 10px; }
+    .roster-box h3 { margin-top: 0; color: #2c3e50; }
+    .roster-list { max-height: 300px; overflow-y: auto; }
+    .roster-item { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #eee; }
+    .roster-item button { padding: 2px 6px; font-size: 12px; }
+    .auth-status { padding: 5px 10px; border-radius: 4px; font-size: 12px; margin-left: auto; }
+    .auth-logged-in { background: #d4edda; color: #155724; }
+    .auth-logged-out { background: #f8d7da; color: #721c24; }
+    .auth-warning { background: #fff3cd; color: #856404; padding: 10px; border-radius: 4px; margin-bottom: 15px; text-align: center; }
+    .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); }
+    .modal-content { background-color: white; margin: 5% auto; padding: 20px; border-radius: 8px; width: 90%; max-width: 800px; }
+    .close { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
+    .close:hover { color: #000; }
+    .student-detail-table { margin-top: 15px; }
+    .filter-bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; padding: 10px; background: #f0f4f8; border-radius: 6px; }
+    .filter-label { font-weight: bold; font-size: 14px; color: #34495e; margin-right: 4px; }
+    .filter-btn { background: #ecf0f1; color: #34495e; border: 1px solid #bdc3c7; padding: 6px 14px; border-radius: 20px; cursor: pointer; font-size: 13px; font-weight: 500; transition: all 0.15s; }
+    .filter-btn:hover { background: #d5dbdb; }
+    .filter-btn.active { background: #34495e; color: white; border-color: #34495e; }
+    #filterStudent { border-radius: 20px; font-size: 13px; padding: 6px 10px; border: 1px solid #bdc3c7; }
+    .view-banner { background: #eaf4fb; border-left: 4px solid #2980b9; padding: 8px 12px; margin-bottom: 10px; border-radius: 0 4px 4px 0; font-size: 13px; color: #1a5276; display: none; }
+    @media print {
+      .controls, .btn-print, .btn-danger, .btn-secondary, .tabs, .modal, .auth-status, .auth-warning, .btn-login { display: none !important; }
+      body { background: white; margin: 0; }
+      .container { box-shadow: none; padding: 0; }
+      h1 { font-size: 20pt; }
+      .chart-grid { page-break-inside: avoid; }
+      table { page-break-inside: auto; }
+      tr { page-break-inside: avoid; page-break-after: auto; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div id="printHeader">
+      <h1>Apex Monitor</h1>
+      <p class="subtitle">Form 4 Girls Biology | Term 1 Baseline → May 15 – Jul 10 2026 | KNEC 231 Grading</p>
+      <p class="subtitle" id="reportDate"></p>
+    </div>
+
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab('scores')">Enter Scores</div>
+      <div class="tab" onclick="switchTab('roster')">Manage Students</div>
+      <div class="auth-status auth-logged-out" id="authStatus">🔒 View Only</div>
+    </div>
+
+    <div id="scoresTab" class="tab-content active">
+      <div class="auth-warning" id="authWarning">
+        <strong>View Only Mode:</strong> Enter password to edit.
+        <input type="password" id="passwordInput" placeholder="Password" style="width:120px; margin: 0 6px;" onkeydown="if(event.key==='Enter') checkPassword()">
+        <button class="btn-login" onclick="checkPassword()">Unlock</button>
+      </div>
+
+      <div class="controls">
+        <label>Test Total: <input type="number" id="maxScore" value="100" min="1" max="100"></label>
+        <select id="studentGroup" onchange="updateStudentDropdown()">
+          <option value="A">Group A</option>
+          <option value="B">Group B</option>
+          <option value="C">Group C</option>
+          <option value="D">Group D</option>
+        </select>
+        <select id="studentName">
+          <option value="">-- Select Student --</option>
+        </select>
+        <select id="weekTopic">
+          <option value="">-- Select Week / Topic --</option>
+          <option value="Term 1 Baseline">Term 1 Baseline</option>
+          <option value="Wk1: Genetics & Evolution">Wk1: May 15 – Genetics & Evolution</option>
+          <option value="Wk2: Coordination & Support">Wk2: May 22 – Coordination & Support</option>
+          <option value="Wk3: Reproduction">Wk3: May 29 – Reproduction Plants & Animals</option>
+          <option value="Wk4: Growth & Development">Wk4: Jun 5 – Growth & Development</option>
+          <option value="Wk5: Excretion & Ecology">Wk5: Jun 12 – Excretion & Ecology</option>
+          <option value="Wk6: Classification & Transport">Wk6: Jun 19 – Classification & Transport</option>
+          <option value="Wk7: Gaseous Exchange & Respiration">Wk7: Jun 26 – Gaseous Exchange & Respiration</option>
+          <option value="Wk8: Photosynthesis & Nutrition">Wk8: Jul 3 – Photosynthesis & Nutrition</option>
+          <option value="Wk9: Cell Physiology & P3 Skills">Wk9: Jul 10 – Cell Physiology & P3 Skills</option>
+        </select>
+        <input type="number" id="testScore" placeholder="Score" min="0">
+        <button onclick="addScore()" id="addScoreBtn" disabled>Add / Update Score</button>
+        <button onclick="exportCSV()">Export to Excel</button>
+        <button class="btn-print" onclick="printReport()">Print Report / PDF</button>
+        <button class="btn-secondary" id="logoutBtn" onclick="logout()" style="display:none;">🔒 Lock</button>
+      </div>
+
+      <div class="filter-bar">
+        <span class="filter-label">View:</span>
+        <button class="filter-btn active" onclick="setFilter('all', this)">All Students</button>
+        <button class="filter-btn" onclick="setFilter('A', this)">Group A</button>
+        <button class="filter-btn" onclick="setFilter('B', this)">Group B</button>
+        <button class="filter-btn" onclick="setFilter('C', this)">Group C</button>
+        <button class="filter-btn" onclick="setFilter('D', this)">Group D</button>
+        <select id="filterStudent" onchange="setStudentFilter(this.value)">
+          <option value="">— Individual Student —</option>
+        </select>
+      </div>
+      <div class="view-banner" id="viewBanner"></div>
+      <div class="stats" id="groupStats"></div>
+
+      <div class="chart-grid">
+        <div><canvas id="groupChart"></canvas></div>
+        <div><canvas id="trendChart"></canvas></div>
+      </div>
+
+      <table id="resultsTable">
+        <thead>
+          <tr>
+            <th>Rank</th>
+            <th>Name</th>
+            <th>Group</th>
+            <th>Last Topic</th>
+            <th id="scoreHeader">Latest /100</th>
+            <th>Grade</th>
+            <th>Average %</th>
+            <th>Tests</th>
+            <th>Deviation</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <p><small>Click student name to view history. KNEC 231: A≥80, A-≥75, B+≥70, B≥65, B-≥60, C+≥55, C≥50, C-≥45, D+≥40, D≥35, D-≥30, E&lt;30</small></p>
+    </div>
+
+    <div id="rosterTab" class="tab-content">
+      <div class="controls">
+        <input type="text" id="newStudentName" placeholder="New Student Name">
+        <select id="newStudentGroup">
+          <option value="A">Group A</option>
+          <option value="B">Group B</option>
+          <option value="C">Group C</option>
+          <option value="D">Group D</option>
+        </select>
+        <button onclick="addStudentToRoster()" id="addStudentBtn" disabled>Add Student</button>
+      </div>
+      <div class="roster-grid">
+        <div class="roster-box">
+          <h3>Group A - Higher Ability</h3>
+          <div class="roster-list" id="rosterA"></div>
+        </div>
+        <div class="roster-box">
+          <h3>Group B - Higher Ability</h3>
+          <div class="roster-list" id="rosterB"></div>
+        </div>
+        <div class="roster-box">
+          <h3>Group C - Lower Ability</h3>
+          <div class="roster-list" id="rosterC"></div>
+        </div>
+        <div class="roster-box">
+          <h3>Group D - Lower Ability</h3>
+          <div class="roster-list" id="rosterD"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="studentModal" class="modal">
+    <div class="modal-content">
+      <span class="close" onclick="closeModal()">&times;</span>
+      <h2 id="modalStudentName"></h2>
+      <canvas id="studentTrendChart"></canvas>
+      <table class="student-detail-table" id="studentDetailTable">
+        <thead>
+          <tr><th>Date</th><th>Topic</th><th>Score</th><th>%</th><th>Grade</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+<script>
+const initialRoster = {
+  A: ["NAIMA SALIM","FATMA MOHAMED HUSSEI","NURJEHAN SWALE","SUNDUS SAID","YUSRA HUSSEIN","FEIRUZ ABDIJABIR","AMINA MOHAMMED MAALI","FATMA THABIT","KAWTHAR SAID","HAFSA HASAN"],
+  B: [],
+  C: ["MALYUN SHARRIF","RAYYAN IBRAHIM","LEYLA JAMIL","ASMA MOHAMMED","ZEITUN SAID","MARWA HEMED","MUNA MAHDY","SUMAYYA HASSAN","FARHIYA IBRAHIM","MUNA MAHMOUD","SUAD SADDIQUE","UMMI ISSA","BASMA ANWAR SAID","SWALHA SWALEH","ANISA MOHAMED","FATMA FUAD","ALYA ATHMAN","SAUDA OMAR"],
+  D: []
+};
+
+const initialStudents = {
+  "NAIMA SALIM": { group: "A", records: [{ topic: "Term 1 Baseline", score: 71.3, maxScore: 100, date: "2026-04-15T00:00:00.000Z" }] },
+  "FATMA MOHAMED HUSSEI": { group: "A", records: [{ topic: "Term 1 Baseline", score: 68.6, maxScore: 100, date: "2026-04-15T00:00:00.000Z" }] },
+  "NURJEHAN SWALE": { group: "A", records: [{ topic: "Term 1 Baseline", score: 66.5, maxScore: 100, date: "2026-04-15T00:00:00.000Z" }] },
+  "SUNDUS SAID": { group: "A", records: [{ topic: "Term 1 Baseline", score: 64.2, maxScore: 100, date: "2026-04-15T00:00:00.000Z" }] },
+  "YUSRA HUSSEIN": { group: "A", records: [{ topic: "Term 1 Baseline", score: 63.6, maxScore: 100, date: "2026-04-15T00:00:00.000Z" }] },
+  "FEIRUZ ABDIJABIR": { group: "A", records: [{ topic: "Term 1 Baseline", score: 60.5, maxScore: 100, date: "2026-04-15T00:00:00.000Z" }] },
+  "AMINA MOHAMMED MAALI": { group: "A", records: [{ topic: "Term 1 Baseline", score: 58.8, maxScore: 100, date: "2026-04-15T00:00:00.000Z" }] },
+  "FATMA THABIT": { group: "A", records: [{ topic: "Term 1 Baseline", score: 57.6, maxScore: 100, date: "2026-04-15T00:00:00.000Z" }] },
+  "KAWTHAR SAID": { group: "A", records: [{ topic: "Term 1 Baseline", score: 57, maxScore: 100, date: "2026-04-15T00:00:00.000Z" }] },
+  "HAFSA HASAN": { group: "A", records: [{ topic: "Term 1 Baseline", score: 56.8, maxScore: 100, date: "2026-04-15T00:00:00.000Z" }] },
+  "MALYUN SHARRIF": { group: "C", records: [{ topic: "Term 1 Baseline", score: 56.2, maxScore: 100, date: "2026-04-15T00:00:00.000Z" }] },
+  "RAYYAN IBRAHIM": { group: "C", records: [{ topic: "Term 1 Baseline", score: 53.3, maxScore: 100, date: "2026-04-15T00:00:00.000Z" }] },
+  "LEYLA JAMIL": { group: "C", records: [{ topic: "Term 1 Baseline", score: 52.6, maxScore: 100, date: "2026-04-15T00:00:00.000Z" }] },
+  "ASMA MOHAMMED": { group: "C", records: [{ topic: "Term 1 Baseline", score: 51.4, maxScore: 100, date: "2026-04-15T00:00:00.000Z" }] },
+  "ZEITUN SAID": { group: "C", records: [{ topic: "Term 1 Baseline", score: 51.6, maxScore: 100, date: "2026-04-15T00:00:00.000Z" }] },
+  "MARWA HEMED": { group: "C", records: [{ topic: "Term 1 Baseline", score: 51, maxScore: 100, date: "2026-04-15T00:00:00.000Z" }] },
+  "MUNA MAHDY": { group: "C", records: [{ topic: "Term 1 Baseline", score: 49.9, maxScore: 100, date: "2026-04-15T00:00:00.000Z" }] },
+  "SUMAYYA HASSAN": { group: "C", records: [{ topic: "Term 1 Baseline", score: 46.9, maxScore: 100, date: "2026-04-15T00:00:00.000Z" }] },
+  "FARHIYA IBRAHIM": { group: "C", records: [{ topic: "Term 1 Baseline", score: 46.9, maxScore: 100, date: "2026-04-15T00:00:00.000Z" }] },
+  "MUNA MAHMOUD": { group: "C", records: [{ topic: "Term 1 Baseline", score: 46.1, maxScore: 100, date: "2026-04-15T00:00:00.000Z" }] },
+  "SUAD SADDIQUE": { group: "C", records: [{ topic: "Term 1 Baseline", score: 43.3, maxScore: 100, date: "2026-04-15T00:00:00.000Z" }] },
+  "UMMI ISSA": { group: "C", records: [{ topic: "Term 1 Baseline", score: 42.5, maxScore: 100, date: "2026-04-15T00:00:00.000Z" }] },
+  "BASMA ANWAR SAID": { group: "C", records: [{ topic: "Term 1 Baseline", score: 44.1, maxScore: 100, date: "2026-04-15T00:00:00.000Z" }] },
+  "SWALHA SWALEH": { group: "C", records: [{ topic: "Term 1 Baseline", score: 41.3, maxScore: 100, date: "2026-04-15T00:00:00.000Z" }] },
+  "ANISA MOHAMED": { group: "C", records: [{ topic: "Term 1 Baseline", score: 39, maxScore: 100, date: "2026-04-15T00:00:00.000Z" }] },
+  "FATMA FUAD": { group: "C", records: [{ topic: "Term 1 Baseline", score: 32.2, maxScore: 100, date: "2026-04-15T00:00:00.000Z" }] },
+  "ALYA ATHMAN": { group: "C", records: [{ topic: "Term 1 Baseline", score: 32.8, maxScore: 100, date: "2026-04-15T00:00:00.000Z" }] },
+  "SAUDA OMAR": { group: "C", records: [{ topic: "Term 1 Baseline", score: 30.4, maxScore: 100, date: "2026-04-15T00:00:00.000Z" }] }
+};
+
+let students = {};
+let roster = {};
+let barChart, lineChart, studentChart;
+let currentUser = null;
+let activeFilter = 'all'; // 'all' | 'A' | 'B' | 'C' | 'D' | student-name
+
+const WEEK_ORDER = ['Term 1 Baseline','Wk1: Genetics & Evolution','Wk2: Coordination & Support','Wk3: Reproduction','Wk4: Growth & Development','Wk5: Excretion & Ecology','Wk6: Classification & Transport','Wk7: Gaseous Exchange & Respiration','Wk8: Photosynthesis & Nutrition','Wk9: Cell Physiology & P3 Skills'];
+const GROUP_COLORS = { A: '#3498db', B: '#e67e22', C: '#9b59b6', D: '#1abc9c' };
+
+// ── Password Auth ─────────────────────────────────────────────────────────────
+const EDIT_PASSWORD = '1994';
+
+function checkPassword() {
+  const val = document.getElementById('passwordInput').value;
+  if (val === EDIT_PASSWORD) {
+    currentUser = true;
+    setEditMode(true);
+    document.getElementById('passwordInput').value = '';
+  } else {
+    document.getElementById('passwordInput').style.border = '2px solid #c0392b';
+    setTimeout(() => document.getElementById('passwordInput').style.border = '', 1000);
+    alert('Incorrect password');
+  }
+}
+
+function logout() {
+  currentUser = false;
+  setEditMode(false);
+}
+
+function setEditMode(enabled) {
+  const statusDiv = document.getElementById('authStatus');
+  const addScoreBtn = document.getElementById('addScoreBtn');
+  const addStudentBtn = document.getElementById('addStudentBtn');
+  const authWarning = document.getElementById('authWarning');
+  const logoutBtn = document.getElementById('logoutBtn');
+
+  if (enabled) {
+    statusDiv.textContent = '✏️ Edit Mode';
+    statusDiv.className = 'auth-status auth-logged-in';
+    addScoreBtn.disabled = false;
+    addStudentBtn.disabled = false;
+    authWarning.style.display = 'none';
+    logoutBtn.style.display = 'inline-block';
+  } else {
+    statusDiv.textContent = '🔒 View Only';
+    statusDiv.className = 'auth-status auth-logged-out';
+    addScoreBtn.disabled = true;
+    addStudentBtn.disabled = true;
+    authWarning.style.display = 'block';
+    logoutBtn.style.display = 'none';
+  }
+  renderRoster(); // refresh remove buttons
+}
+
+function initAuth() {
+  // No-op: password auth needs no async init
+  setEditMode(false);
+}
+
+// ── Firebase ──────────────────────────────────────────────────────────────────
+function initFirebase() {
+  const dataRef = window.dbRef(window.db, 'apexMonitor');
+
+  window.dbOnValue(dataRef, (snapshot) => {
+    const data = snapshot.val();
+    if (data) {
+      students = data.students || initialStudents;
+      roster = data.roster || initialRoster;
+    } else {
+      students = initialStudents;
+      roster = initialRoster;
+      if (currentUser) saveToFirebase();
+    }
+    renderTable();
+    renderRoster();
+    updateStudentDropdown();
+  });
+}
+
+function saveToFirebase() {
+  if (!currentUser) {
+    alert('Please enter the password to save changes');
+    return false;
+  }
+  window.dbSet(window.dbRef(window.db, 'apexMonitor'), { students, roster });
+  return true;
+}
+
+// ── Tabs ──────────────────────────────────────────────────────────────────────
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  document.querySelector(`.tab:nth-child(${tab === 'scores' ? 1 : 2})`).classList.add('active');
+  document.getElementById(tab + 'Tab').classList.add('active');
+  if (tab === 'roster') renderRoster();
+}
+
+// ── Grading ───────────────────────────────────────────────────────────────────
+function getGrade(percent) {
+  if (percent >= 80) return 'A';
+  if (percent >= 75) return 'A-';
+  if (percent >= 70) return 'B+';
+  if (percent >= 65) return 'B';
+  if (percent >= 60) return 'B-';
+  if (percent >= 55) return 'C+';
+  if (percent >= 50) return 'C';
+  if (percent >= 45) return 'C-';
+  if (percent >= 40) return 'D+';
+  if (percent >= 35) return 'D';
+  if (percent >= 30) return 'D-';
+  return 'E';
+}
+
+// ── Roster Management ─────────────────────────────────────────────────────────
+function addStudentToRoster() {
+  if (!currentUser) { alert('Please enter the password to add students'); return; }
+  const name = document.getElementById('newStudentName').value.trim().toUpperCase();
+  const group = document.getElementById('newStudentGroup').value;
+  if (!name) { alert('Enter student name'); return; }
+  if (Object.values(roster).flat().includes(name)) { alert('Student already exists'); return; }
+  roster[group].push(name);
+  roster[group].sort();
+  if (saveToFirebase()) {
+    document.getElementById('newStudentName').value = '';
+  }
+}
+
+function removeFromRoster(name, group) {
+  if (!currentUser) { alert('Please enter the password to remove students'); return; }
+  if (confirm(`Remove ${name} from Group ${group}? Their scores will be kept.`)) {
+    roster[group] = roster[group].filter(n => n !== name);
+    saveToFirebase();
+  }
+}
+
+function renderRoster() {
+  ['A', 'B', 'C', 'D'].forEach(g => {
+    const div = document.getElementById('roster' + g);
+    div.innerHTML = (roster[g] && roster[g].length)
+      ? roster[g].map(name => `
+          <div class="roster-item">
+            <span>${name}</span>
+            <button class="btn-danger" onclick="removeFromRoster('${name}','${g}')" ${!currentUser ? 'disabled' : ''}>X</button>
+          </div>`).join('')
+      : '<p><em>No students yet</em></p>';
+  });
+}
+
+function updateStudentDropdown() {
+  const group = document.getElementById('studentGroup').value;
+  const select = document.getElementById('studentName');
+  const list = (roster[group] || []);
+  select.innerHTML = '<option value="">-- Select Student --</option>' +
+    list.map(name => `<option value="${name}">${name}</option>`).join('');
+}
+
+// ── Score Entry ───────────────────────────────────────────────────────────────
+function addScore() {
+  if (!currentUser) { alert('Please enter the password to add scores'); return; }
+  const name = document.getElementById('studentName').value;
+  const group = document.getElementById('studentGroup').value;
+  const topic = document.getElementById('weekTopic').value;
+  const score = parseFloat(document.getElementById('testScore').value);
+  const maxScore = parseFloat(document.getElementById('maxScore').value);
+
+  if (!name || !topic || isNaN(score) || score < 0 || score > maxScore || isNaN(maxScore) || maxScore <= 0) {
+    alert('Check: Student, Topic, Score ≤ Test Total, and valid Test Total');
+    return;
+  }
+
+  if (!students[name]) {
+    students[name] = { group: group, records: [] };
+  }
+  students[name].group = group;
+  students[name].records.push({ topic, score, maxScore, date: new Date().toISOString() });
+
+  if (saveToFirebase()) {
+    document.getElementById('weekTopic').value = '';
+    document.getElementById('testScore').value = '';
+  }
+}
+
+// ── Student History Modal ─────────────────────────────────────────────────────
+function showStudentHistory(name) {
+  const student = students[name];
+  if (!student) return;
+
+  document.getElementById('modalStudentName').textContent = `${name} - Group ${student.group} Performance History`;
+  document.getElementById('studentModal').style.display = 'block';
+
+  const tbody = document.querySelector('#studentDetailTable tbody');
+  tbody.innerHTML = '';
+
+  const labels = [];
+  const data = [];
+
+  student.records.forEach(rec => {
+    const percent = (rec.score / rec.maxScore) * 100;
+    labels.push(rec.topic.split(':')[0]);
+    data.push(percent.toFixed(1));
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${new Date(rec.date).toLocaleDateString('en-KE')}</td>
+      <td>${rec.topic}</td>
+      <td>${rec.score}/${rec.maxScore}</td>
+      <td>${percent.toFixed(1)}%</td>
+      <td>${getGrade(percent)}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  const ctx = document.getElementById('studentTrendChart');
+  if (studentChart) studentChart.destroy();
+  studentChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: `${name} % Score`,
+        data: data,
+        borderColor: GROUP_COLORS[student.group],
+        backgroundColor: GROUP_COLORS[student.group] + '40',
+        tension: 0.2,
+        fill: true
+      }]
+    },
+    options: {
+      responsive: true,
+      scales: { y: { beginAtZero: true, max: 100 } },
+      plugins: { title: { display: true, text: 'Individual Performance Trend' } }
+    }
+  });
+}
+
+function closeModal() {
+  document.getElementById('studentModal').style.display = 'none';
+}
+
+window.onclick = function(event) {
+  const modal = document.getElementById('studentModal');
+  if (event.target === modal) closeModal();
+};
+
+// ── Filter Controls ──────────────────────────────────────────────────────────
+function setFilter(value, btn) {
+  activeFilter = value;
+  // Update group buttons
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  // Reset individual student dropdown
+  document.getElementById('filterStudent').value = '';
+  renderTable();
+}
+
+function setStudentFilter(name) {
+  if (!name) { setFilter('all', document.querySelector('.filter-btn')); return; }
+  activeFilter = name;
+  // Deactivate group buttons
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  renderTable();
+}
+
+function populateFilterStudentDropdown(allData) {
+  const sel = document.getElementById('filterStudent');
+  const current = sel.value;
+  sel.innerHTML = '<option value="">— Individual Student —</option>' +
+    allData.map(s => `<option value="${s.name}" ${s.name === current ? 'selected' : ''}>${s.name} (Grp ${s.group})</option>`).join('');
+}
+
+// ── Main Table ────────────────────────────────────────────────────────────────
+function renderTable() {
+  const tbody = document.querySelector('#resultsTable tbody');
+  tbody.innerHTML = '';
+
+  const currentMax = parseFloat(document.getElementById('maxScore').value) || 100;
+  document.getElementById('scoreHeader').textContent = `Latest /${currentMax}`;
+
+  // Build full data array (unfiltered) for stats & charts
+  let allData = Object.entries(students).map(([name, info]) => {
+    const records = info.records || [];
+    if (!records.length) return null;
+    const percents = records.map(r => (r.score / r.maxScore) * 100);
+    const avgPercent = percents.reduce((a, b) => a + b, 0) / percents.length;
+    const latestRecord = records[records.length - 1];
+    const latestPercent = (latestRecord.score / latestRecord.maxScore) * 100;
+    const deviation = latestPercent - avgPercent;
+    return {
+      name, group: info.group, avgPercent,
+      latestScore: latestRecord.score, latestMax: latestRecord.maxScore,
+      latestPercent, latestTopic: latestRecord.topic,
+      grade: getGrade(latestPercent), tests: records.length, deviation, records
+    };
+  }).filter(Boolean);
+
+  allData.sort((a, b) => b.avgPercent - a.avgPercent);
+  populateFilterStudentDropdown(allData);
+
+  // Apply filter for table rows
+  let viewData = allData;
+  if (activeFilter === 'all') {
+    viewData = allData;
+  } else if (['A','B','C','D'].includes(activeFilter)) {
+    viewData = allData.filter(s => s.group === activeFilter);
+  } else {
+    // Individual student
+    viewData = allData.filter(s => s.name === activeFilter);
+  }
+
+  // View banner
+  const banner = document.getElementById('viewBanner');
+  if (activeFilter === 'all') {
+    banner.style.display = 'none';
+    banner.textContent = '';
+  } else if (['A','B','C','D'].includes(activeFilter)) {
+    banner.style.display = 'block';
+    banner.textContent = `Showing Group ${activeFilter} only — ${viewData.length} student(s)`;
+  } else {
+    const s = viewData[0];
+    banner.style.display = 'block';
+    banner.textContent = s
+      ? `Showing: ${s.name} | Group ${s.group} | ${s.tests} test(s) | Avg ${s.avgPercent.toFixed(1)}%`
+      : `No data found for selected student`;
+  }
+
+  // Group stats (always from full data)
+  const groupStats = { A: [], B: [], C: [], D: [] };
+  allData.forEach(s => { if (groupStats[s.group]) groupStats[s.group].push(s.avgPercent); });
+  const groupMeans = {};
+  ['A', 'B', 'C', 'D'].forEach(g => {
+    const arr = groupStats[g];
+    groupMeans[g] = {
+      mean: arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0,
+      count: arr.length,
+      min: arr.length ? Math.min(...arr) : 0,
+      max: arr.length ? Math.max(...arr) : 0
+    };
+  });
+
+  // Stat boxes — highlight active group
+  const statsDiv = document.getElementById('groupStats');
+  statsDiv.innerHTML = ['A', 'B', 'C', 'D'].map(g => `
+    <div class="stat-box" style="${activeFilter === g ? 'border: 2px solid ' + GROUP_COLORS[g] + '; background:#eaf4fb;' : ''}">
+      <strong>Group ${g}</strong><br>
+      Students: ${groupMeans[g].count}<br>
+      Avg: ${groupMeans[g].mean.toFixed(1)}%<br>
+      Range: ${groupMeans[g].min.toFixed(1)}% – ${groupMeans[g].max.toFixed(1)}%
+    </div>
+  `).join('');
+
+  // Table rows (filtered)
+  viewData.forEach((s, i) => {
+    const tr = document.createElement('tr');
+    if (s.deviation < -10) tr.classList.add('deviation');
+    const gradeClass = s.grade === 'A' || s.grade === 'A-' ? 'grade-A' : s.grade === 'E' ? 'grade-E' : '';
+    const deviationStr = s.deviation >= 0 ? `+${s.deviation.toFixed(1)}%` : `${s.deviation.toFixed(1)}%`;
+    tr.innerHTML = `
+      <td>${i + 1}</td>
+      <td class="student-name" onclick="showStudentHistory('${s.name}')">${s.name}</td>
+      <td>${s.group}</td>
+      <td>${s.latestTopic}</td>
+      <td>${s.latestScore}/${s.latestMax}</td>
+      <td class="${gradeClass}">${s.grade}</td>
+      <td>${s.avgPercent.toFixed(1)}%</td>
+      <td>${s.tests}</td>
+      <td>${deviationStr}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  updateCharts(groupMeans, allData);
+}
+
+// ── Charts ────────────────────────────────────────────────────────────────────
+function updateCharts(groupMeans, allData) {
+  // Bar chart – group averages
+  const ctxBar = document.getElementById('groupChart');
+  if (barChart) barChart.destroy();
+  barChart = new Chart(ctxBar, {
+    type: 'bar',
+    data: {
+      labels: ['Group A', 'Group B', 'Group C', 'Group D'],
+      datasets: [{
+        label: 'Average Score %',
+        data: ['A', 'B', 'C', 'D'].map(g => groupMeans[g].mean.toFixed(1)),
+        backgroundColor: [GROUP_COLORS.A, GROUP_COLORS.B, GROUP_COLORS.C, GROUP_COLORS.D],
+        borderWidth: 1
+      }]
+    },
+    options: {
+      responsive: true,
+      animation: false,
+      scales: { y: { beginAtZero: true, max: 100 } },
+      plugins: { title: { display: true, text: 'Overall Group Performance %' } }
+    }
+  });
+
+  // Line chart – weekly trend per group
+  const weeklyData = { A: {}, B: {}, C: {}, D: {} };
+  WEEK_ORDER.forEach(week => {
+    ['A', 'B', 'C', 'D'].forEach(g => { weeklyData[g][week] = []; });
+  });
+
+  allData.forEach(student => {
+    student.records.forEach(rec => {
+      const percent = (rec.score / rec.maxScore) * 100;
+      if (!weeklyData[student.group][rec.topic]) weeklyData[student.group][rec.topic] = [];
+      weeklyData[student.group][rec.topic].push(percent);
+    });
+  });
+
+  const weekLabels = WEEK_ORDER.map(w => w.split(':')[0]);
+  const datasets = ['A', 'B', 'C', 'D'].map(g => ({
+    label: `Group ${g}`,
+    data: WEEK_ORDER.map(week => {
+      const arr = weeklyData[g][week];
+      return arr.length ? (arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(1) : null;
+    }),
+    borderColor: GROUP_COLORS[g],
+    backgroundColor: GROUP_COLORS[g] + '20',
+    spanGaps: true,
+    tension: 0.2
+  }));
+
+  const ctxLine = document.getElementById('trendChart');
+  if (lineChart) lineChart.destroy();
+  lineChart = new Chart(ctxLine, {
+    type: 'line',
+    data: { labels: weekLabels, datasets },
+    options: {
+      responsive: true,
+      animation: false,
+      scales: { y: { beginAtZero: true, max: 100 } },
+      plugins: { title: { display: true, text: 'Weekly Topic Trend: Baseline → Wk9' } }
+    }
+  });
+}
+
+// ── Print & Export ────────────────────────────────────────────────────────────
+function printReport() {
+  const now = new Date();
+  document.getElementById('reportDate').textContent =
+    `Report Generated: ${now.toLocaleDateString('en-KE')} ${now.toLocaleTimeString('en-KE')}`;
+  window.print();
+}
+
+function exportCSV() {
+  let csv = 'Rank,Name,Group,Last Topic,Latest Score,Latest Total,Grade,Average %,Tests Done,Deviation %\n';
+  document.querySelectorAll('#resultsTable tbody tr').forEach(row => {
+    const cols = Array.from(row.children).map(td => `"${td.textContent}"`);
+    csv += cols.join(',') + '\n';
+  });
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'apex_monitor_results.csv';
+  a.click();
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+// Render initial data immediately so the table is never blank
+students = JSON.parse(JSON.stringify(initialStudents));
+roster   = JSON.parse(JSON.stringify(initialRoster));
+renderTable();
+renderRoster();
+updateStudentDropdown();
+
+document.getElementById('maxScore').addEventListener('input', renderTable);
+initAuth();
+initFirebase(); // Will overwrite with live Firebase data when it loads
+</script>
+</body>
+</html>
